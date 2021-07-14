@@ -6,9 +6,9 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.3.4
+#       jupytext_version: 1.11.3
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: Python 3 (ipykernel)
 #     language: python
 #     name: python3
 # ---
@@ -63,11 +63,12 @@
 
 from deepracer.tracks import TrackIO, Track
 
-from deepracer.logs import CloudWatchLogs as cw, \
-    AnalysisUtils as au, \
+from deepracer.logs import AnalysisUtils as au, \
     SimulationLogsIO as slio, \
     EvaluationUtils as eu, \
-    PlottingUtils as pu
+    PlottingUtils as pu 
+
+
 
 # Ignore deprecation warnings we have no power over
 import warnings
@@ -86,7 +87,7 @@ warnings.filterwarnings('ignore')
 tu = TrackIO()
 
 # +
-track: Track = tu.load_track("reinvent_base")
+track: Track = tu.load_track("Oval_track")
 
 track.road_poly
 # -
@@ -106,7 +107,7 @@ track.road_poly
 # +
 # For the purpose of generating the notebook in a reproducible way
 # logs download has been commented out.
-logs = [('logs/deepracer-eval-sim-sample.log', 'sim-sample')]
+logs = [('logs/podracer-logs/logs/evaluation/evaluation-20210714032541-8JGD3XSfQCaC3Ph33LIPDA-robomaker.log', 'podracing-jon-0713-v1')]
 
 # logs = cw.download_all_logs(
 #     'logs/deepracer-eval-', 
@@ -128,7 +129,7 @@ bulk = slio.load_a_list_of_logs(logs)
 # Side note: Evaluation/race logs contain a reward field but it's not connected to your reward. It is there most likely to ensure logs have consistent structure to make their parsing easier. The value appears to be dependand on distance of the car from the centre of the track. As such it provides no value and is not visualised in this notebook.
 
 # +
-simulation_agg = au.simulation_agg(bulk, 'stream', add_timestamp=True, is_eval=True)
+simulation_agg = au.simulation_agg(bulk, 'stream', add_tstamp=True, is_eval=True)
 complete_ones = simulation_agg[simulation_agg['progress']==100]
 
 # This gives the warning about ptp method deprecation. The code looks as if np.ptp was used, I don't know how to fix it.
@@ -146,7 +147,7 @@ simulation_agg.nlargest(15, 'progress')
 complete_ones.nsmallest(15, 'time')
 
 # View ten most recent lap attempts
-simulation_agg.nlargest(10, 'timestamp')
+simulation_agg.nlargest(10, 'tstamp')
 
 # ## Plot all the evaluation laps
 #
@@ -166,7 +167,7 @@ pu.plot_evaluations(bulk, track)
 # This place is a great chance to learn more about [Pandas](https://pandas.pydata.org/pandas-docs/stable/) and about how to process data series.
 
 # Load a single lap
-lap_df = bulk[(bulk['episode']==0) & (bulk['stream']=='sim-sample')]
+lap_df = bulk[(bulk['episode']==0) & (bulk['stream']=='podracing-jon-0713-v1')]
 
 # We're adding a lot of columns here to the episode. To speed things up, it's only done per a single episode, so others will currently be missing this information.
 #
@@ -174,11 +175,11 @@ lap_df = bulk[(bulk['episode']==0) & (bulk['stream']=='sim-sample')]
 
 # +
 lap_df.loc[:,'distance']=((lap_df['x'].shift(1)-lap_df['x']) ** 2 + (lap_df['y'].shift(1)-lap_df['y']) ** 2) ** 0.5
-lap_df.loc[:,'time']=lap_df['timestamp'].astype(float)-lap_df['timestamp'].shift(1).astype(float)
-lap_df.loc[:,'speed']=lap_df['distance']/(100*lap_df['time'])
-lap_df.loc[:,'acceleration']=(lap_df['distance']-lap_df['distance'].shift(1))/lap_df['time']
+lap_df.loc[:,'lap_time']=lap_df['tstamp'].astype(float)-lap_df['tstamp'].shift(1).astype(float)
+lap_df.loc[:,'speed']=lap_df['distance']/(100*lap_df['tstamp'].astype(float))
+lap_df.loc[:,'acceleration']=(lap_df['distance']-lap_df['distance'].shift(1))/lap_df['tstamp'].astype(float)
 lap_df.loc[:,'progress_delta']=lap_df['progress'].astype(float)-lap_df['progress'].shift(1).astype(float)
-lap_df.loc[:,'progress_delta_per_time']=lap_df['progress_delta']/lap_df['time']
+lap_df.loc[:,'progress_delta_per_time']=lap_df['progress_delta']/lap_df['tstamp'].astype(float)
 
 pu.plot_grid_world(lap_df, track, graphed_value='reward')
 # -
@@ -187,10 +188,13 @@ pu.plot_grid_world(lap_df, track, graphed_value='reward')
 #
 # Debug your evaluation runs or analyze the laps. By providing the evaluation simulation id you can fetch a single log file and use it. You can do the same for race submission but I recommend using the bulk solution above. If you still want to do it, make sure to add `log_group = "/aws/robomaker/leaderboard/SimulationJobs"` to `download_log` call.
 
-eval_sim = 'sim-sample'
-eval_fname = 'logs//deepracer-eval-%s.log' % eval_sim
-cw.download_log(eval_fname, stream_prefix=eval_sim)
+# +
+#eval_sim = 'podracing-jon-0713-v1'
+#eval_fname = 'logs//deepracer-eval-%s.log' % eval_sim
+#cw.download_log(eval_fname, stream_prefix=eval_sim)
+# -
 
+eval_fname = 'logs/podracer-logs/logs/evaluation/evaluation-20210714032541-8JGD3XSfQCaC3Ph33LIPDA-robomaker.log'
 # !head $eval_fname
 
 eval_df = slio.load_pandas(eval_fname)
